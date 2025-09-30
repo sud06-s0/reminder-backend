@@ -6,10 +6,30 @@ class ReminderScheduler {
     console.log('ReminderScheduler initialized');
   }
 
+  // FIX: Parse datetime string without timezone conversion
+  parseDateTimeWithoutTimezone(dateTimeStr) {
+    // Remove 'Z' if present and split into components
+    const cleanStr = dateTimeStr.replace('Z', '').replace(' ', 'T');
+    const [datePart, timePart] = cleanStr.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    // Create date using local components (avoids timezone conversion)
+    return new Date(year, month - 1, day, hours, minutes, 0);
+  }
+
   calculateReminderTimes(meetingDateTime) {
-    const meetingTime = new Date(meetingDateTime);
+    // FIX: Use the new parsing method
+    const meetingTime = this.parseDateTimeWithoutTimezone(meetingDateTime);
     const r1Time = new Date(meetingTime.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
     const r2Time = new Date(meetingTime.getTime() - 60 * 60 * 1000); // 1 hour before
+    
+    console.log('Calculated reminder times:', {
+      input: meetingDateTime,
+      meetingTime: meetingTime.toISOString(),
+      r1Time: r1Time.toISOString(),
+      r2Time: r2Time.toISOString()
+    });
     
     return { r1Time, r2Time, meetingTime };
   }
@@ -67,14 +87,18 @@ class ReminderScheduler {
 
   scheduleReminders(leadId, phone, parentsName, meetingDate, meetingTime, fieldType = 'meeting') {
     console.log(`Scheduling reminders for lead ${leadId} (${fieldType})`);
+    console.log(`Input: meetingDate=${meetingDate}, meetingTime=${meetingTime}`);
     
     // Cancel existing reminders for this lead
     this.cancelReminders(leadId, fieldType);
 
     const meetingDateTime = `${meetingDate}T${meetingTime}:00`;
+    console.log(`Combined datetime: ${meetingDateTime}`);
+    
     const { r1Time, r2Time } = this.calculateReminderTimes(meetingDateTime);
 
     const now = new Date();
+    console.log(`Current time: ${now.toISOString()}`);
 
     // Schedule R1 (24 hours before)
     if (r1Time > now) {
@@ -91,7 +115,7 @@ class ReminderScheduler {
       this.scheduledJobs.set(jobKey, r1Job);
       console.log(`✓ R1 reminder scheduled for lead ${leadId} at ${r1Time.toISOString()}`);
     } else {
-      console.log(`⚠ R1 time already passed for lead ${leadId} (${fieldType})`);
+      console.log(`⚠ R1 time already passed for lead ${leadId} (${fieldType}). R1 was: ${r1Time.toISOString()}, Now: ${now.toISOString()}`);
     }
 
     // Schedule R2 (1 hour before)
@@ -109,12 +133,14 @@ class ReminderScheduler {
       this.scheduledJobs.set(jobKey, r2Job);
       console.log(`✓ R2 reminder scheduled for lead ${leadId} at ${r2Time.toISOString()}`);
     } else {
-      console.log(`⚠ R2 time already passed for lead ${leadId} (${fieldType})`);
+      console.log(`⚠ R2 time already passed for lead ${leadId} (${fieldType}). R2 was: ${r2Time.toISOString()}, Now: ${now.toISOString()}`);
     }
   }
 
   scheduleJob(targetTime, callback) {
     const delay = targetTime.getTime() - Date.now();
+    
+    console.log(`Scheduling job with delay: ${delay}ms (${Math.round(delay/1000/60)} minutes)`);
     
     if (delay <= 0) {
       console.log('Target time already passed, not scheduling');
@@ -158,9 +184,11 @@ class ReminderScheduler {
       leads.forEach(lead => {
         // Schedule meeting reminders
         if (lead.meet_datetime) {
-          const meetDateTime = new Date(lead.meet_datetime);
-          const meetingDate = meetDateTime.toISOString().split('T')[0];
-          const meetingTime = meetDateTime.toTimeString().slice(0, 5);
+          // FIX: Extract date and time without timezone conversion
+          const meetDateTimeStr = lead.meet_datetime.replace('Z', '').replace(' ', 'T');
+          const [datePart, timePart] = meetDateTimeStr.split('T');
+          const meetingDate = datePart;
+          const meetingTime = timePart ? timePart.slice(0, 5) : '';
 
           // Only schedule if not already sent
           if (lead.stage2_r1 !== 'SENT' || lead.stage2_r2 !== 'SENT') {
@@ -171,9 +199,11 @@ class ReminderScheduler {
 
         // Schedule visit reminders
         if (lead.visit_datetime) {
-          const visitDateTime = new Date(lead.visit_datetime);
-          const visitDate = visitDateTime.toISOString().split('T')[0];
-          const visitTime = visitDateTime.toTimeString().slice(0, 5);
+          // FIX: Extract date and time without timezone conversion
+          const visitDateTimeStr = lead.visit_datetime.replace('Z', '').replace(' ', 'T');
+          const [datePart, timePart] = visitDateTimeStr.split('T');
+          const visitDate = datePart;
+          const visitTime = timePart ? timePart.slice(0, 5) : '';
 
           // Only schedule if not already sent
           if (lead.stage7_r1 !== 'SENT' || lead.stage7_r2 !== 'SENT') {
