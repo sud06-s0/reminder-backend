@@ -6,32 +6,28 @@ class ReminderScheduler {
     console.log('ReminderScheduler initialized');
   }
 
-  // FIX: Parse datetime string without timezone conversion
-  parseDateTimeWithoutTimezone(dateTimeStr) {
-    // Remove 'Z' if present and split into components
-    const cleanStr = dateTimeStr.replace('Z', '').replace(' ', 'T');
-    const [datePart, timePart] = cleanStr.split('T');
+  calculateReminderTimes(meetingDateTime) {
+    // Parse the input datetime string (assumed to be in IST)
+    const [datePart, timePart] = meetingDateTime.split('T');
     const [year, month, day] = datePart.split('-').map(Number);
     const [hours, minutes] = timePart.split(':').map(Number);
     
-    // Create date using local components (avoids timezone conversion)
-    return new Date(year, month - 1, day, hours, minutes, 0);
-  }
-
-  calculateReminderTimes(meetingDateTime) {
-    // FIX: Use the new parsing method
-    const meetingTime = this.parseDateTimeWithoutTimezone(meetingDateTime);
-    const r1Time = new Date(meetingTime.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
-    const r2Time = new Date(meetingTime.getTime() - 60 * 60 * 1000); // 1 hour before
+    // Create UTC timestamp and subtract IST offset (5.5 hours = 19800000 ms)
+    // This converts IST input to proper UTC time for scheduling
+    const istTimestamp = Date.UTC(year, month - 1, day, hours, minutes, 0);
+    const meetingTimeUTC = new Date(istTimestamp - (5.5 * 60 * 60 * 1000));
+    
+    const r1Time = new Date(meetingTimeUTC.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
+    const r2Time = new Date(meetingTimeUTC.getTime() - 60 * 60 * 1000); // 1 hour before
     
     console.log('Calculated reminder times:', {
       input: meetingDateTime,
-      meetingTime: meetingTime.toISOString(),
+      meetingTime: meetingTimeUTC.toISOString(),
       r1Time: r1Time.toISOString(),
       r2Time: r2Time.toISOString()
     });
     
-    return { r1Time, r2Time, meetingTime };
+    return { r1Time, r2Time, meetingTime: meetingTimeUTC };
   }
 
   async sendReminder(phone, parentsName, meetingDate, meetingTime, reminderType, leadId, fieldType) {
@@ -184,7 +180,6 @@ class ReminderScheduler {
       leads.forEach(lead => {
         // Schedule meeting reminders
         if (lead.meet_datetime) {
-          // FIX: Extract date and time without timezone conversion
           const meetDateTimeStr = lead.meet_datetime.replace('Z', '').replace(' ', 'T');
           const [datePart, timePart] = meetDateTimeStr.split('T');
           const meetingDate = datePart;
@@ -199,7 +194,6 @@ class ReminderScheduler {
 
         // Schedule visit reminders
         if (lead.visit_datetime) {
-          // FIX: Extract date and time without timezone conversion
           const visitDateTimeStr = lead.visit_datetime.replace('Z', '').replace(' ', 'T');
           const [datePart, timePart] = visitDateTimeStr.split('T');
           const visitDate = datePart;
