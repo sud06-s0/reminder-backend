@@ -61,7 +61,7 @@ class ReminderScheduler {
         : (reminderType === 'R1' ? 'stage7_r1' : 'stage7_r2');
 
       const { error: updateError } = await supabase
-        .from('leads')
+        .from('Leads')
         .update({ 
           [statusField]: 'SENT',
           updated_at: new Date().toISOString()
